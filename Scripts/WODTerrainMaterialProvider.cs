@@ -56,7 +56,7 @@ namespace WorldOfDaggerfall
 
             // Handle winter season for climates that change during winter, excluding specific ones
             if (isWinter && climate.ClimateType != DFLocation.ClimateBaseType.Desert &&
-                worldClimate != (int)Climates.Rainforest && 
+                //worldClimate != (int)Climates.Rainforest && 
                 worldClimate != (int)Climates.Subtropical && 
                 worldClimate != (int)Climates.Desert &&
                 worldClimate != (int)Climates.Desert2)
