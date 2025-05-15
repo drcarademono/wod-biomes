@@ -1,6 +1,6 @@
 {
     "ModTitle": "World of Daggerfall - Biomes",
-    "ModVersion": "0.3.0",
+    "ModVersion": "0.5.0",
     "ModAuthor": "carademono and Kab the Bird Ranger",
     "ContactInfo": "Lysandus' Tomb Discord server",
     "DFUnity_Version": "1.0.0",
@@ -233,6 +233,7 @@
         "Assets/Game/Mods/wod-biomes/Textures/Terrain/Subtropical/004_28-0.png",
         "Assets/Game/Mods/wod-biomes/Textures/Terrain/Subtropical/004_29-0.png",
         "Assets/Game/Mods/wod-biomes/Textures/Terrain/Subtropical/004_30-0.png",
-        "Assets/Game/Mods/wod-biomes/Textures/Terrain/Subtropical/004_31-0.png"
+        "Assets/Game/Mods/wod-biomes/Textures/Terrain/Subtropical/004_31-0.png",
+        "Assets/Game/Mods/wod-biomes/Scripts/WODClimates.cs"
     ]
 }
