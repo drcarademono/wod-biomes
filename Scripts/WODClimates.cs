@@ -15,85 +15,56 @@ using DaggerfallConnect.Utility;                     // for FileUsage
 
 namespace WorldOfDaggerfall
 {
-    public static class NatureBatchOverrider
+    public static class NatureBatchOverriderInstaller
     {
         [Invoke(StateManager.StateTypes.Start, 0)]
         public static void Init(InitParams _)
         {
+            Debug.Log("[NatureBatch] Installer.Init");
             var go = new GameObject("NatureBatchOverrider");
             UnityEngine.Object.DontDestroyOnLoad(go);
-            go.AddComponent<BatchOverrider>();
+            go.AddComponent<NatureBatchOverrider>();
         }
     }
 
-    class BatchOverrider : MonoBehaviour
+    public class NatureBatchOverrider : MonoBehaviour
     {
-        // ← make sure this is defined here
         const int NEW_ARCHIVE = 10030;
 
-        HashSet<int> _seen = new HashSet<int>();
+        void OnEnable()
+        {
+            StreamingWorld.OnUpdateTerrainsEnd += ApplyOverrides;
+        }
 
-        void Update()
+        void OnDisable()
+        {
+            StreamingWorld.OnUpdateTerrainsEnd -= ApplyOverrides;
+        }
+
+        void ApplyOverrides()
         {
             foreach (var batch in FindObjectsOfType<DaggerfallBillboardBatch>())
             {
-                if (!_seen.Add(batch.GetInstanceID()))
-                    continue;
-
-                Debug.Log($"[NatureBatch] Found batch “{batch.name}” Archive={batch.TextureArchive}");
-
-                // only Sub-Tropical
                 if (batch.TextureArchive != 501)
-                {
-                    Debug.Log("  → skipping, not archive 501");
                     continue;
+
+                bool inRegion = false;
+                if (batch.GetComponentInParent<DaggerfallLocation>() is var loc && loc != null)
+                {
+                    var rn = loc.Summary.RegionName;
+                    inRegion = (rn == "Abibon-Gora" || rn == "Kairou" || rn == "Pothago");
+                }
+                else if (batch.GetComponentInParent<DaggerfallTerrain>() is var terrain && terrain != null)
+                {
+                    int x = terrain.MapPixelX, y = terrain.MapPixelY;
+                    var maps = DaggerfallUnity.Instance.ContentReader.MapFileReader;
+                    int region = maps.GetPoliticIndex(x, y) - 128;
+                    inRegion = (region == 43 || region == 44 || region == 45);
                 }
 
-                bool inDesiredRegion = false;
-
-                // 1) under a location?
-                var location = batch.GetComponentInParent<DaggerfallLocation>();
-                if (location != null)
-                {
-                    var rn = location.Summary.RegionName;
-                    Debug.Log($"  → location parent, RegionName = “{rn}”");
-                    if (rn == "Abibon-Gora" || rn == "Kairou" || rn == "Pothago")
-                    {
-                        inDesiredRegion = true;
-                        Debug.Log("  → matched location region");
-                    }
-                }
-                else
-                {
-                    // 2) under terrain?
-                    var terrain = batch.GetComponentInParent<DaggerfallTerrain>();
-                    if (terrain != null)
-                    {
-                        int x = terrain.MapPixelX;
-                        int y = terrain.MapPixelY;
-                        var maps = DaggerfallUnity.Instance.ContentReader.MapFileReader;
-                        int politicIndex = maps.GetPoliticIndex(x, y);
-                        int regionIndex = politicIndex - 128;
-                        Debug.Log($"  → terrain parent at ({x},{y}), PoliticIndex = {politicIndex}, RegionIndex = {regionIndex}");
-                        if (regionIndex == 43 || regionIndex == 44 || regionIndex == 45)
-                        {
-                            inDesiredRegion = true;
-                            Debug.Log("  → matched terrain region");
-                        }
-                    }
-                    else
-                    {
-                        Debug.Log("  → no Location or Terrain parent");
-                    }
-                }
-
-                if (!inDesiredRegion)
-                {
-                    Debug.Log("  → skipping, not in desired region");
+                if (!inRegion)
                     continue;
-                }
 
-                Debug.Log("  → overriding this batch now!");
                 CustomBillboardHelper.RevisedSetMaterial(batch, NEW_ARCHIVE, true);
                 batch.Apply();
             }
