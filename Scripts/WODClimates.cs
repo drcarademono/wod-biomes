@@ -17,8 +17,6 @@ namespace WorldOfDaggerfall
 {
     public static class NatureBatchOverrider
     {
-        const int NEW_ARCHIVE = 10030;
-
         [Invoke(StateManager.StateTypes.Start, 0)]
         public static void Init(InitParams _)
         {
@@ -26,20 +24,78 @@ namespace WorldOfDaggerfall
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<BatchOverrider>();
         }
+    }
 
-        class BatchOverrider : MonoBehaviour
+    class BatchOverrider : MonoBehaviour
+    {
+        // ← make sure this is defined here
+        const int NEW_ARCHIVE = 10030;
+
+        HashSet<int> _seen = new HashSet<int>();
+
+        void Update()
         {
-            HashSet<int> _seen = new HashSet<int>();
-            void Update()
+            foreach (var batch in FindObjectsOfType<DaggerfallBillboardBatch>())
             {
-                foreach (var batch in FindObjectsOfType<DaggerfallBillboardBatch>())
+                if (!_seen.Add(batch.GetInstanceID()))
+                    continue;
+
+                Debug.Log($"[NatureBatch] Found batch “{batch.name}” Archive={batch.TextureArchive}");
+
+                // only Sub-Tropical
+                if (batch.TextureArchive != 501)
                 {
-                    if (_seen.Add(batch.GetInstanceID()))
+                    Debug.Log("  → skipping, not archive 501");
+                    continue;
+                }
+
+                bool inDesiredRegion = false;
+
+                // 1) under a location?
+                var location = batch.GetComponentInParent<DaggerfallLocation>();
+                if (location != null)
+                {
+                    var rn = location.Summary.RegionName;
+                    Debug.Log($"  → location parent, RegionName = “{rn}”");
+                    if (rn == "Abibon-Gora" || rn == "Kairou" || rn == "Pothago")
                     {
-                        CustomBillboardHelper.RevisedSetMaterial(batch, NEW_ARCHIVE, true);
-                        batch.Apply();
+                        inDesiredRegion = true;
+                        Debug.Log("  → matched location region");
                     }
                 }
+                else
+                {
+                    // 2) under terrain?
+                    var terrain = batch.GetComponentInParent<DaggerfallTerrain>();
+                    if (terrain != null)
+                    {
+                        int x = terrain.MapPixelX;
+                        int y = terrain.MapPixelY;
+                        var maps = DaggerfallUnity.Instance.ContentReader.MapFileReader;
+                        int politicIndex = maps.GetPoliticIndex(x, y);
+                        int regionIndex = politicIndex - 128;
+                        Debug.Log($"  → terrain parent at ({x},{y}), PoliticIndex = {politicIndex}, RegionIndex = {regionIndex}");
+                        if (regionIndex == 43 || regionIndex == 44 || regionIndex == 45)
+                        {
+                            inDesiredRegion = true;
+                            Debug.Log("  → matched terrain region");
+                        }
+                    }
+                    else
+                    {
+                        Debug.Log("  → no Location or Terrain parent");
+                    }
+                }
+
+                if (!inDesiredRegion)
+                {
+                    Debug.Log("  → skipping, not in desired region");
+                    continue;
+                }
+
+                Debug.Log("  → overriding this batch now!");
+                CustomBillboardHelper.RevisedSetMaterial(batch, NEW_ARCHIVE, true);
+                batch.Apply();
             }
         }
     }
@@ -204,6 +260,13 @@ namespace WorldOfDaggerfall
             // pack albedo into _lastAtlas
             _lastAtlas   = new Texture2D(settings.atlasMaxSize, settings.atlasMaxSize, TextureFormat.ARGB32, true);
             atlasRects   = _lastAtlas.PackTextures(albedos.ToArray(), settings.atlasPadding, settings.atlasMaxSize, false);
+            if (albedos.Count > 0)
+            {
+                var sample = albedos[0];
+                _lastAtlas.filterMode = sample.filterMode;
+                _lastAtlas.wrapMode   = sample.wrapMode;
+                _lastAtlas.anisoLevel = sample.anisoLevel;
+            }
             atlasIndices = indicesList.ToArray();
             frameCounts  = results.atlasFrameCounts.ToArray();
 
