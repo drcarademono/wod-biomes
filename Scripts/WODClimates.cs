@@ -73,6 +73,33 @@ namespace WorldOfDaggerfall
 
     static class CustomBillboardHelper
     {
+        // — Reflection caches —
+        static readonly FieldInfo _currentArchiveField;
+        static readonly FieldInfo _cachedMaterialField;
+        static readonly FieldInfo _textureArchiveField;
+
+        // static ctor to populate them once
+        static CustomBillboardHelper()
+        {
+            var bt = typeof(DaggerfallBillboardBatch);
+            _currentArchiveField   = bt.GetField("currentArchive",   BindingFlags.Instance | BindingFlags.NonPublic);
+            _cachedMaterialField   = bt.GetField("cachedMaterial",   BindingFlags.Instance | BindingFlags.NonPublic);
+            _textureArchiveField   = bt.GetField("TextureArchive",   BindingFlags.Instance | BindingFlags.Public);
+        }
+
+        class CachedAtlas
+        {
+            public Texture2D       atlas;
+            public Rect[]          rects;
+            public RecordIndex[]   indices;
+            public int[]           frameCounts;
+            public Vector2[]       sizes;
+            public Vector2[]       scales;
+        }
+
+        // archive → already baked atlas data
+        static readonly Dictionary<int, CachedAtlas> _atlasCache = new Dictionary<int, CachedAtlas>();
+
         // stash our generated albedo atlas so RevisedSetMaterial can grab it
         static Texture2D _lastAtlas = null;
 
@@ -81,9 +108,7 @@ namespace WorldOfDaggerfall
         /// </summary>
         public static void RevisedSetMaterial(DaggerfallBillboardBatch batch, int archive, bool force)
         {
-            var bt   = typeof(DaggerfallBillboardBatch);
-            var curF = bt.GetField("currentArchive", BindingFlags.Instance|BindingFlags.NonPublic);
-            int cur  = (int)curF.GetValue(batch);
+            int cur  = (int)_currentArchiveField.GetValue(batch);
             if (archive == cur && !force) return;
 
             // 1) pull down all atlas data
@@ -117,11 +142,9 @@ namespace WorldOfDaggerfall
             };
 
             // 4) shove everything back into DaggerfallBillboardBatch
-            bt.GetField("cachedMaterial", BindingFlags.Instance|BindingFlags.NonPublic)
-              .SetValue(batch, cm);
-            bt.GetField("TextureArchive", BindingFlags.Instance|BindingFlags.Public)
-              .SetValue(batch, archive);
-            curF.SetValue(batch, archive);
+            _cachedMaterialField.SetValue(batch, cm);
+            _textureArchiveField.SetValue(batch, archive);
+            _currentArchiveField.SetValue(batch, archive);
 
             // 5) assign material to renderer
             var rend = batch.GetComponent<MeshRenderer>();
@@ -145,6 +168,19 @@ namespace WorldOfDaggerfall
             out Vector2[]    recordScales,
             out int          key)
         {
+            // if we've already built this archive, replay it directly
+            if (_atlasCache.TryGetValue(archive, out var ca))
+            {
+                _lastAtlas    = ca.atlas;
+                atlasRects    = ca.rects;
+                atlasIndices  = ca.indices;
+                frameCounts   = ca.frameCounts;
+                recordSizes   = ca.sizes;
+                recordScales  = ca.scales;
+                key           = archive;
+                return;
+            }
+
             // prepare settings
             var settings = new GetTextureSettings
             {
