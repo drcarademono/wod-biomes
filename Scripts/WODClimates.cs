@@ -17,11 +17,6 @@ namespace WorldOfDaggerfall
 {
     public static class NatureBatchOverriderInstaller
     {
-
-	    private static Mod VEMod;
-
-	    public static bool VEModEnabled;
-
         [Invoke(StateManager.StateTypes.Start, 0)]
         public static void Init(InitParams _)
         {
@@ -29,12 +24,6 @@ namespace WorldOfDaggerfall
             var go = new GameObject("NatureBatchOverrider");
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<NatureBatchOverrider>();
-
-		    VEMod = ModManager.Instance.GetModFromGUID("1f124f8c-dd01-48ad-a5b9-0b4a0e4702d2");
-		    if (VEMod != null && VEMod.Enabled)
-		    {
-			    VEModEnabled = true;
-		    }
         }
     }
 
@@ -257,7 +246,7 @@ namespace WorldOfDaggerfall
             recordSizes  = results.atlasSizes.ToArray();
             recordScales = results.atlasScales.ToArray();
 
-            if (!NatureBatchOverriderInstaller.VEModEnabled)for (int i = 0; i < recordSizes.Length; i++) // Scale textures x2
+            if (!WODBiomes.VEModEnabled)for (int i = 0; i < recordSizes.Length; i++) // Scale textures x2
                 recordSizes[i] *= 2f;
 
             key          = archive; // or hash all arrays for a unique key
