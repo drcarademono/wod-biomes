@@ -234,6 +234,15 @@
         "Assets/Game/Mods/wod-biomes/Textures/Terrain/Subtropical/004_29-0.png",
         "Assets/Game/Mods/wod-biomes/Textures/Terrain/Subtropical/004_30-0.png",
         "Assets/Game/Mods/wod-biomes/Textures/Terrain/Subtropical/004_31-0.png",
-        "Assets/Game/Mods/wod-biomes/Scripts/WODClimates.cs"
+        "Assets/Game/Mods/wod-biomes/Scripts/WODClimates.cs",
+        "Assets/Game/Mods/wod-biomes/Assets/Maps/climate_map.png"
+    ],
+    "Dependencies": [
+        {
+            "Name": "daggerfall expanded textures",
+            "IsOptional": false,
+            "IsPeer": true,
+            "Version": "1.2.0"
+        }
     ]
 }

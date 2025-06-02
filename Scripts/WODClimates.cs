@@ -17,10 +17,23 @@ namespace WorldOfDaggerfall
 {
     public static class NatureBatchOverriderInstaller
     {
+        public static Texture2D climateMap;
+
         [Invoke(StateManager.StateTypes.Start, 0)]
-        public static void Init(InitParams _)
+        public static void Init(InitParams initParams)
         {
             Debug.Log("[NatureBatch] Installer.Init");
+
+            var mod = initParams.Mod;
+            mod.LoadAllAssetsFromBundle();
+
+            // try loading our map
+            climateMap = mod.GetAsset<Texture2D>("climate_map");
+            if (climateMap == null)
+                Debug.LogError("[NatureBatch] 🌡️ climate_map asset NOT found!");
+            else
+                Debug.Log($"[NatureBatch] 🌡️ climate_map loaded: {climateMap.width}×{climateMap.height}, readable={climateMap.isReadable}");
+
             var go = new GameObject("NatureBatchOverrider");
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<NatureBatchOverrider>();
@@ -31,42 +44,61 @@ namespace WorldOfDaggerfall
     {
         const int NEW_ARCHIVE = 10030;
 
-        void OnEnable()
-        {
-            StreamingWorld.OnUpdateTerrainsEnd += ApplyOverrides;
-        }
-
-        void OnDisable()
-        {
-            StreamingWorld.OnUpdateTerrainsEnd -= ApplyOverrides;
-        }
+        void OnEnable()  => StreamingWorld.OnUpdateTerrainsEnd += ApplyOverrides;
+        void OnDisable() => StreamingWorld.OnUpdateTerrainsEnd -= ApplyOverrides;
 
         void ApplyOverrides()
         {
+            if (NatureBatchOverriderInstaller.climateMap == null)
+            {
+                Debug.LogWarning("[NatureBatch] climateMap is null, skipping overrides.");
+                return;
+            }
+
+            int mapW = NatureBatchOverriderInstaller.climateMap.width;
+            int mapH = NatureBatchOverriderInstaller.climateMap.height;
+
             foreach (var batch in FindObjectsOfType<DaggerfallBillboardBatch>())
             {
                 if (batch.TextureArchive != 501)
                     continue;
 
-                bool inRegion = false;
-                if (batch.GetComponentInParent<DaggerfallLocation>() is var loc && loc != null)
+                // 1) Try location first
+                int mx = -1, my = -1;
+                var loc = batch.GetComponentInParent<DaggerfallLocation>();
+                if (loc != null)
                 {
-                    var rn = loc.Summary.RegionName;
-                    inRegion = (rn == "Abibon-Gora" || rn == "Kairou" || rn == "Pothago");
+                    mx = loc.Summary.MapPixelX;
+                    my = loc.Summary.MapPixelY;
                 }
                 else if (batch.GetComponentInParent<DaggerfallTerrain>() is var terrain && terrain != null)
                 {
-                    int x = terrain.MapPixelX, y = terrain.MapPixelY;
-                    var maps = DaggerfallUnity.Instance.ContentReader.MapFileReader;
-                    int region = maps.GetPoliticIndex(x, y) - 128;
-                    inRegion = (region == 43 || region == 44 || region == 45);
+                    mx = terrain.MapPixelX;
+                    my = terrain.MapPixelY;
+                }
+                else
+                {
+                    // not in a location or terrain → skip
+                    continue;
                 }
 
-                if (!inRegion)
+                // 2) Bounds check
+                if (mx < 0 || mx >= mapW || my < 0 || my >= mapH)
+                {
+                    Debug.LogError($"[NatureBatch] Pixel coords ({mx},{my}) out of range for climateMap {mapW}×{mapH}");
                     continue;
+                }
 
-                CustomBillboardHelper.RevisedSetMaterial(batch, NEW_ARCHIVE, true);
-                batch.Apply();
+                // 3) Flip Y, sample
+                int ty = mapH - 1 - my;
+                Color32 c = NatureBatchOverriderInstaller.climateMap.GetPixel(mx, ty);
+
+                // 4) Match #FFA500
+                if (c.r == 255 && c.g == 165 && c.b == 0)
+                {
+                    CustomBillboardHelper.RevisedSetMaterial(batch, NEW_ARCHIVE, true);
+                    batch.Apply();
+                }
             }
         }
     }
